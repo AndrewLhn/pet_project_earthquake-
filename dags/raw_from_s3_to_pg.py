@@ -23,7 +23,7 @@ ACCESS_KEY = Variable.get("access_key")
 SECRET_KEY = Variable.get("secret_key")
 
 # PostgreSQL
-PG_HOST = 'postgres_dwh'
+PG_HOST = 'pet_project_earthquake--postgres_dwh-1'
 PG_PORT = 5432
 PG_DATABASE = 'postgres'
 PG_USER = 'postgres'
