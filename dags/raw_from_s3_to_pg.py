@@ -22,8 +22,12 @@ TARGET_TABLE = "fct_earthquake"
 ACCESS_KEY = Variable.get("access_key")
 SECRET_KEY = Variable.get("secret_key")
 
-# DuckDB
-PASSWORD = Variable.get("pg_password")
+# PostgreSQL
+PG_HOST = 'postgres_dwh'
+PG_PORT = 5432
+PG_DATABASE = 'postgres'
+PG_USER = 'postgres'
+PG_PASSWORD = Variable.get("pg_password")
 
 LONG_DESCRIPTION = """
 # LONG DESCRIPTION
@@ -48,13 +52,93 @@ def get_dates(**context) -> tuple[str, str]:
     return start_date, end_date
 
 
+def create_postgres_table_if_not_exists():
+    """Создает таблицу в PostgreSQL если она не существует"""
+    import psycopg2
+    
+    try:
+        # Подключаемся напрямую к PostgreSQL
+        conn = psycopg2.connect(
+            host=PG_HOST,
+            port=PG_PORT,
+            database=PG_DATABASE,
+            user=PG_USER,
+            password=PG_PASSWORD
+        )
+        cursor = conn.cursor()
+        
+        # Создаем схему если не существует
+        cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA};")
+        
+        # Создаем таблицу если не существует
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA}.{TARGET_TABLE} (
+                time TIMESTAMP,
+                latitude DOUBLE PRECISION,
+                longitude DOUBLE PRECISION,
+                depth DOUBLE PRECISION,
+                mag DOUBLE PRECISION,
+                mag_type VARCHAR(10),
+                nst INTEGER,
+                gap DOUBLE PRECISION,
+                dmin DOUBLE PRECISION,
+                rms DOUBLE PRECISION,
+                net VARCHAR(10),
+                id VARCHAR(50),
+                updated TIMESTAMP,
+                place TEXT,
+                type VARCHAR(50),
+                horizontal_error DOUBLE PRECISION,
+                depth_error DOUBLE PRECISION,
+                mag_error DOUBLE PRECISION,
+                mag_nst INTEGER,
+                status VARCHAR(50),
+                location_source VARCHAR(50),
+                mag_source VARCHAR(50)
+            );
+        """)
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logging.info(f"✅ Table {SCHEMA}.{TARGET_TABLE} created or already exists")
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to create table: {e}")
+        raise
+
+
 def get_and_transfer_raw_data_to_ods_pg(**context):
     """"""
-
     start_date, end_date = get_dates(**context)
     logging.info(f"💻 Start load for dates: {start_date}/{end_date}")
+    
+    # Сначала создаем таблицу
+    create_postgres_table_if_not_exists()
+    
+    # Теперь загружаем данные через DuckDB
     con = duckdb.connect()
+    
+    # Удаляем старые данные за этот период (чтобы избежать дубликатов)
+    import psycopg2
+    conn = psycopg2.connect(
+        host=PG_HOST,
+        port=PG_PORT,
+        database=PG_DATABASE,
+        user=PG_USER,
+        password=PG_PASSWORD
+    )
+    cursor = conn.cursor()
+    cursor.execute(f"""
+        DELETE FROM {SCHEMA}.{TARGET_TABLE} 
+        WHERE DATE(time) >= %s AND DATE(time) < %s
+    """, (start_date, end_date))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    logging.info(f"🧹 Deleted existing records for {start_date}")
 
+    # Загружаем новые данные
     con.sql(
         f"""
         SET TIMEZONE='UTC';
@@ -68,11 +152,11 @@ def get_and_transfer_raw_data_to_ods_pg(**context):
 
         CREATE SECRET dwh_postgres (
             TYPE postgres,
-            HOST 'postgres_dwh',
-            PORT 5432,
-            DATABASE postgres,
-            USER 'postgres',
-            PASSWORD '{PASSWORD}'
+            HOST '{PG_HOST}',
+            PORT {PG_PORT},
+            DATABASE '{PG_DATABASE}',
+            USER '{PG_USER}',
+            PASSWORD '{PG_PASSWORD}'
         );
 
         ATTACH '' AS dwh_postgres_db (TYPE postgres, SECRET dwh_postgres);
@@ -126,7 +210,7 @@ def get_and_transfer_raw_data_to_ods_pg(**context):
             locationSource AS location_source,
             magSource AS mag_source
         FROM 's3://prod/{LAYER}/{SOURCE}/{start_date}/{start_date}_00-00-00.gz.parquet';
-        """,
+        """
     )
 
     con.close()
