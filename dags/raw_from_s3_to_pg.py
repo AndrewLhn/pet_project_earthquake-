@@ -158,7 +158,7 @@ with DAG(
         poke_interval=60,  # частота проверки
     )
 
-    get_and_transfer_raw_data_to_ods_pg = PythonOperator(
+    transfer_data = PythonOperator(
         task_id="get_and_transfer_raw_data_to_ods_pg",
         python_callable=get_and_transfer_raw_data_to_ods_pg,
     )
@@ -167,4 +167,6 @@ with DAG(
         task_id="end",
     )
 
-    start >> sensor_on_raw_layer >> get_and_transfer_raw_data_to_ods_pg >> end
+    start.set_downstream(sensor_on_raw_layer)
+    sensor_on_raw_layer.set_downstream(transfer_data)
+    transfer_data.set_downstream(end)

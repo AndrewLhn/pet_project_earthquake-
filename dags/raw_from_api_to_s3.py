@@ -91,7 +91,7 @@ with DAG(
         task_id="start",
     )
 
-    get_and_transfer_api_data_to_s3 = PythonOperator(
+    transfer_task = PythonOperator(
         task_id="get_and_transfer_api_data_to_s3",
         python_callable=get_and_transfer_api_data_to_s3,
     )
@@ -100,4 +100,4 @@ with DAG(
         task_id="end",
     )
 
-    start >> get_and_transfer_api_data_to_s3 >> end
+    dag = start >> transfer_task >> end
