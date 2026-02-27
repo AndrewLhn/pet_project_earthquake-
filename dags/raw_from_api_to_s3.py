@@ -36,11 +36,15 @@ args = {
 
 def get_dates(**context) -> tuple[str, str]:
     """"""
-    start_date = context["data_interval_start"].format("YYYY-MM-DD")
-    end_date = context["data_interval_end"].format("YYYY-MM-DD")
-
+    # Используем execution_date вместо data_interval_start
+    start_date = context["execution_date"].format("YYYY-MM-DD")
+    
+    # Для end_date используем тот же день (или следующий, если нужно)
+    end_date = start_date
+    
+    logging.info(f"📅 Processing date: {start_date}")
+    
     return start_date, end_date
-
 
 def get_and_transfer_api_data_to_s3(**context):
     """"""

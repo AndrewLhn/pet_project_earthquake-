@@ -46,10 +46,16 @@ args = {
 
 def get_dates(**context) -> tuple[str, str]:
     """"""
-    start_date = context["data_interval_start"].format("YYYY-MM-DD")
-    end_date = context["data_interval_end"].format("YYYY-MM-DD")
-
-    return start_date, end_date
+    # Используем execution_date (это и есть дата, за которую запущен DAG)
+    execution_date = context["execution_date"]
+    
+    # Форматируем дату
+    date_str = execution_date.format("YYYY-MM-DD")
+    
+    logging.info(f"📅 Processing date from execution_date: {date_str}")
+    
+    # Возвращаем одинаковые start и end для одного дня
+    return date_str, date_str
 
 
 def create_postgres_table_if_not_exists():
